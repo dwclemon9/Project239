@@ -39,6 +39,29 @@ export function sessionsSince(days: number, asOf: string): Session[] {
     .all(addDays(asOf, -(days - 1)), asOf) as Session[];
 }
 
+/**
+ * Every rep in a date window, grouped by session. Joined on date rather than a
+ * long IN clause so a year of history stays one query.
+ */
+export function repsBySessionSince(days: number, asOf: string): Map<number, Rep[]> {
+  const rows = db
+    .prepare(
+      `SELECT r.* FROM rep r
+       JOIN session s ON s.id = r.session_id
+       WHERE s.date >= ? AND s.date <= ?
+       ORDER BY r.session_id, r.set_index, r.rep_index`,
+    )
+    .all(addDays(asOf, -(days - 1)), asOf) as Rep[];
+
+  const grouped = new Map<number, Rep[]>();
+  for (const rep of rows) {
+    const existing = grouped.get(rep.session_id);
+    if (existing) existing.push(rep);
+    else grouped.set(rep.session_id, [rep]);
+  }
+  return grouped;
+}
+
 /** Date of the first session ever logged, or null on an empty log. */
 export function earliestSessionDate(): string | null {
   const row = db.prepare('SELECT MIN(date) AS date FROM session').get() as { date: string | null };

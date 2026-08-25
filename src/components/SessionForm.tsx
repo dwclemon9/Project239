@@ -134,7 +134,9 @@ export default function SessionForm({ session, unit, defaultDate }: Props) {
               <option value="moderate">Moderate</option>
               <option value="hard">Hard</option>
             </select>
-            <span className="hint">Drives the 80/20 split on the dashboard.</span>
+            <span className="hint">
+              Fallback only — with reps or a duration logged, pace decides the split.
+            </span>
           </div>
           <div className="field" style={{ gridColumn: '1 / -1' }}>
             <label htmlFor="title">Title</label>

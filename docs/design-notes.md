@@ -40,6 +40,37 @@ ramping, > 1.5 spike) follow the commonly cited spread.
 not quality. Defaulting it to "moderate" made the 80/20 split read as though
 every week was too hard.
 
+## Intensity is a property of segments, not sessions
+
+The first version put a session's whole distance into one band, so a 9-mile
+workout with 6 x 800m counted 9 miles as hard when only 3 of them were. That
+overstated quality volume badly enough to make the 80/20 tile lie — it read 52%
+easy on training that was really 89% easy.
+
+`intensitySplit` divides a session's distance across the three bands:
+
+1. **Reps logged** — each timed rep is banded by its own pace; whatever distance
+   is left over is warmup, cooldown and recovery jog, which are easy by
+   definition. An untimed rep takes the session's declared band, since it is
+   still quality work.
+2. **No reps** — the session's average pace bands the whole thing.
+3. **No pace derivable** (no duration, or no threshold pace set) — falls back to
+   the intensity declared on the form.
+
+The band edges are relative to threshold pace, in seconds per mile:
+`MODERATE_FAST_EDGE = -10`, `MODERATE_SLOW_EDGE = +30`. So threshold through
+roughly marathon pace is moderate, faster is hard, easier is easy — which is the
+distinction the 80/20 rule is actually about. Both constants are exported and
+meant to be tuned against how the athlete actually runs.
+
+Two guards worth keeping: rep distance is capped at the session's own distance,
+so a mistyped rep cannot invent volume that was never run; and the three bands
+always sum to exactly the session distance, which a test asserts directly.
+
+The declared `intensity` field survives as the fallback, and the session page
+names which of the three rules produced its split — the classification should
+never look like magic.
+
 ## Readiness
 
 A 0–100 weighted score from the morning check-in. Sleep and fatigue carry the
@@ -95,6 +126,14 @@ Light values are defined on bare `:root`. Dark redefines only what changes, in
 two places: a `prefers-color-scheme` media query guarded with
 `:not([data-theme="light"])`, and an explicit `:root[data-theme="dark"]` block.
 No color has its only definition inside a media query.
+
+## Imports carry explicit `.ts` extensions
+
+`training.ts` imports a constant from `format.ts` by its full filename. The test
+suite runs on Node's type-stripping loader, which resolves ESM strictly and will
+not guess an extension, while the bundler is happy either way. Writing the
+extension is what lets the same modules be imported by both without duplicating
+constants across files.
 
 ## Local-first
 

@@ -3,11 +3,13 @@ import StatTile, { type StatStatus } from '@/components/StatTile';
 import VolumeChart from '@/components/charts/VolumeChart';
 import TrendChart, { type TrendPoint } from '@/components/charts/TrendChart';
 import {
-  earliestSessionDate, getAthlete, listNiggles, listWellness, personalBests, sessionsSince,
+  earliestSessionDate, getAthlete, listNiggles, listWellness, personalBests,
+  repsBySessionSince, sessionsSince,
 } from '@/lib/queries';
 import {
   addDays, dailySummaries, dateRange, distanceInWindow, easyShare, loadStatus,
-  monthlySummaries, monthStart, readinessScore, todayISO, weeklySummaries, weekStart,
+  monthlySummaries, monthStart, readinessScore, todayISO, weeklySummaries,
+  weekStart, withIntensity,
 } from '@/lib/training';
 import {
   formatDayLabel, formatDuration, formatPace, formatRepTime, sessionTypeLabel, toUnit,
@@ -30,8 +32,14 @@ export default function Dashboard() {
   // A full year in one read: every rollup below filters by date, so the daily,
   // weekly and monthly charts all come off this single query.
   const sessions = sessionsSince(366, today);
-  const days = dailySummaries(sessions, today);
-  const weeks = weeklySummaries(sessions, 12, today);
+  // Volume is classified per segment, so the rollups need each session's reps.
+  const volume = withIntensity(
+    sessions,
+    repsBySessionSince(366, today),
+    athlete.threshold_pace_sec,
+  );
+  const days = dailySummaries(volume, today);
+  const weeks = weeklySummaries(volume, 12, today);
 
   // Show only months you have actually trained through, so a new log does not
   // open on a chart that is nine-twelfths empty.
@@ -42,7 +50,7 @@ export default function Dashboard() {
         (Number(monthStart(earliest).slice(0, 4)) * 12 + Number(monthStart(earliest).slice(5, 7))),
       ) + 1
     : 3;
-  const months = monthlySummaries(sessions, Math.max(3, Math.min(monthsLogged, 12)), today);
+  const months = monthlySummaries(volume, Math.max(3, Math.min(monthsLogged, 12)), today);
   const thisWeek = weeks[weeks.length - 1];
   const lastWeek = weeks[weeks.length - 2];
   const load = loadStatus(sessions, today);
@@ -115,7 +123,7 @@ export default function Dashboard() {
           label="Easy volume, last 4 weeks"
           value={share == null ? '—' : `${Math.round(share * 100)}`}
           unit={share == null ? undefined : '%'}
-          meta="Target is roughly 80% of weekly volume genuinely easy"
+          meta="Warmups, cooldowns and recovery jogs count as easy; only the reps themselves are quality"
           status={share == null ? undefined : share >= 0.75 ? 'good' : 'warning'}
           statusLabel={
             share == null ? undefined : share >= 0.75 ? 'Aerobic base protected' : 'Quality creeping up'

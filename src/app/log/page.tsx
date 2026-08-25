@@ -1,7 +1,7 @@
 import Link from 'next/link';
-import { getAthlete, listSessions } from '@/lib/queries';
+import { getAthlete, listSessions, repsBySessionSince } from '@/lib/queries';
 import { formatDayLabel, formatDuration, formatPace, sessionTypeLabel, toUnit } from '@/lib/format';
-import { weekStart } from '@/lib/training';
+import { dominantIntensity, intensitySplit, todayISO, weekStart } from '@/lib/training';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,6 +24,15 @@ export default async function LogPage({
   const athlete = getAthlete();
   const unit = athlete.distance_unit;
   const sessions = listSessions({ type: type || undefined, limit: 200 });
+
+  // Intensity shown here is derived from rep paces, matching the dashboard.
+  const reps = repsBySessionSince(366 * 3, todayISO());
+  const intensityOf = new Map(
+    sessions.map((s) => [
+      s.id,
+      dominantIntensity(intensitySplit(s, reps.get(s.id) ?? [], athlete.threshold_pace_sec)),
+    ]),
+  );
 
   // Group by training week so the log reads the way a week is planned.
   const groups = new Map<string, typeof sessions>();
@@ -107,9 +116,9 @@ export default async function LogPage({
                           <span className="chip">
                             <span
                               className="legend-swatch"
-                              style={{ background: `var(--intensity-${s.intensity})` }}
+                              style={{ background: `var(--intensity-${intensityOf.get(s.id)})` }}
                             />
-                            {s.intensity}
+                            {intensityOf.get(s.id)}
                           </span>
                         </td>
                         <td className="num">

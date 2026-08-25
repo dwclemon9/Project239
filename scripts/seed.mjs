@@ -97,7 +97,15 @@ for (let w = WEEKS - 1; w >= 0; w--) {
     { offset: 0, type: 'easy', miles: easyDay, title: 'Easy + strides' },
     { offset: 1, type: 'workout', miles: workoutMiles, title: workout.title, workout },
     { offset: 2, type: 'easy', miles: easyDay, title: 'Easy' },
-    { offset: 3, type: tempoMiles ? 'tempo' : 'easy', miles: tempoMiles || easyDay, title: tempoMiles ? '4 mile tempo' : 'Easy' },
+    {
+      offset: 3,
+      type: tempoMiles ? 'tempo' : 'easy',
+      miles: tempoMiles || easyDay,
+      title: tempoMiles ? '4 mile tempo' : 'Easy',
+      // The tempo itself is logged as one long rep, so the warmup and cooldown
+      // in the same session are classified as the easy running they are.
+      workout: tempoMiles ? { reps: 1, dist: Math.round(4 * MI), target: 4 * 345, rest: 0 } : null,
+    },
     { offset: 4, type: 'easy', miles: easyDay, title: 'Easy + drills' },
     { offset: 5, type: 'long', miles: longRun, title: 'Long run' },
     { offset: 6, type: easyDay > 6 ? 'recovery' : 'off', miles: easyDay > 6 ? 5 : 0, title: 'Recovery' },

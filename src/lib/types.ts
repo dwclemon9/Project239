@@ -102,6 +102,18 @@ export interface SessionWithDetail extends Session {
   lifts: Lift[];
 }
 
+/** How one session's distance divides across the three intensity bands. */
+export interface IntensitySplit {
+  easy_m: number;
+  moderate_m: number;
+  hard_m: number;
+}
+
+/** A session with its volume already classified, ready to roll up. */
+export interface SessionVolume extends Session {
+  split: IntensitySplit;
+}
+
 /**
  * One bar's worth of volume — a day, a training week, or a month. The chart
  * only ever sees this shape, so the period it covers is the caller's choice.

@@ -5,7 +5,7 @@ import {
   formatDayLabel, formatDistance, formatDuration, formatPace, formatRepTime,
   paceSecPerUnit, sessionTypeLabel,
 } from '@/lib/format';
-import { sessionLoad } from '@/lib/training';
+import { intensitySplit, sessionLoad } from '@/lib/training';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,7 +14,16 @@ export default async function SessionPage({ params }: { params: Promise<{ id: st
   const session = getSession(Number(id));
   if (!session) notFound();
 
-  const unit = getAthlete().distance_unit;
+  const athlete = getAthlete();
+  const unit = athlete.distance_unit;
+  const split = intensitySplit(session, session.reps, athlete.threshold_pace_sec);
+  const classifiedBy = !athlete.threshold_pace_sec
+    ? 'the intensity set on the session — add a threshold pace in settings to classify by pace'
+    : session.reps.some((r) => (r.distance_m ?? 0) > 0)
+      ? 'rep paces, with the rest counted as warmup, cooldown and recovery'
+      : session.duration_sec
+        ? 'the average pace of the session'
+        : 'the intensity set on the session — no duration to derive a pace from';
   const repTimes = session.reps.map((r) => r.duration_sec).filter((t): t is number => t != null);
   const avgRep = repTimes.length ? repTimes.reduce((a, b) => a + b, 0) / repTimes.length : null;
   const fastest = repTimes.length ? Math.min(...repTimes) : null;
@@ -38,6 +47,10 @@ export default async function SessionPage({ params }: { params: Promise<{ id: st
       </div>
 
       <div className="card">
+        <div className="card-head">
+          <h2>Session</h2>
+          <span className="sub">Volume classified by {classifiedBy}</span>
+        </div>
         <div className="table-scroll">
           <table>
             <tbody>
@@ -47,6 +60,9 @@ export default async function SessionPage({ params }: { params: Promise<{ id: st
               <Row label="RPE" value={session.rpe == null ? '—' : `${session.rpe} / 10`} />
               <Row label="Feel" value={session.feel == null ? '—' : `${session.feel} / 5`} />
               <Row label="Training load" value={String(Math.round(sessionLoad(session)))} />
+              <Row label="Easy volume" value={formatDistance(split.easy_m, unit, 2)} />
+              <Row label="Moderate volume" value={formatDistance(split.moderate_m, unit, 2)} />
+              <Row label="Hard volume" value={formatDistance(split.hard_m, unit, 2)} />
               <Row label="Heart rate" value={
                 session.avg_hr || session.max_hr
                   ? `${session.avg_hr ?? '—'} avg · ${session.max_hr ?? '—'} max`

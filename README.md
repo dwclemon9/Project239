@@ -34,6 +34,25 @@ npm run build     # production build
   load. It needs about four weeks of history before it means anything.
 - **Easy volume share** — the 80/20 check. If quality creeps past ~25% of your
   weekly volume, the tile says so.
+
+Volume is classified **per segment, not per session**. In a workout, the warmup,
+cooldown and recovery jog are easy running; only the reps themselves are
+quality. Each timed rep is banded by its own pace against your threshold:
+
+| Band | Pace |
+|---|---|
+| Hard | faster than threshold |
+| Moderate | threshold through marathon pace |
+| Easy | anything easier |
+
+A session with no reps is banded by its average pace; if there is no duration or
+no threshold pace set yet, it falls back to the intensity you picked on the
+form. Every session page shows its split and says which of those three rules
+produced it.
+
+To get credit for a tempo, log the tempo portion as a rep — a tempo is a
+one-rep workout, and the rep builder does it in one click. Otherwise its average
+pace is diluted by the warmup and it reads as an easy run.
 - Readiness trend from your morning check-ins, personal bests, open niggles,
   and recent sessions.
 
