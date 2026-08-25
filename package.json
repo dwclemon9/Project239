@@ -2,6 +2,9 @@
   "name": "project239",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22.6"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -12,7 +15,7 @@
   },
   "dependencies": {
     "better-sqlite3": "^11.8.1",
-    "next": "15.1.6",
+    "next": "^16.3.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

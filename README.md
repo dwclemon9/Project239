@@ -6,11 +6,22 @@ your own machine. No account, no server, no one else reading your log.
 
 ## Running it
 
+Needs **Node 22.6 or newer** (`node --version`). The test runner uses Node's
+built-in TypeScript stripping, which lands in 22.6; if you are on an older Node,
+`nvm install 22` is the quickest fix.
+
 ```bash
+git clone https://github.com/dwclemon9/Project239.git
+cd Project239
 npm install
 npm run seed      # optional: 12 weeks of demo training so the dashboard isn't blank
-npm run dev       # http://localhost:3000
+npm run dev       # then open http://localhost:3000
 ```
+
+`npm install` compiles `better-sqlite3`. It ships prebuilt binaries for common
+platforms, so this is normally just a download; if your platform has no prebuild
+it falls back to compiling, which needs Xcode command line tools on macOS or
+`build-essential` on Linux.
 
 `npm run seed -- --reset` wipes the log first. To start genuinely clean, delete
 `data/training.db` — it is gitignored, so your log never lands in a commit.
