@@ -55,8 +55,17 @@ Built as inline SVG, no charting library. The rules they follow:
   Both mode ramps were validated for monotone lightness, step separation, and
   contrast against their own surface:
   light `#86b6ef → #2a78d6 → #104281`, dark `#9ec5f4 → #3987e5 → #184f95`.
-- **The 4-week average is an annotation, not a series** — drawn in muted ink so
-  it does not compete with the ramp for meaning.
+- **One chart component, three periods.** `VolumeChart` takes pre-built
+  `VolumeBucket`s and never knows whether a bar is a day, a week, or a month.
+  The rollups in `training.ts` share one bucketizer, so a fix to the intensity
+  split or the empty-period handling lands on all three at once.
+- **The rolling average is an annotation, not a series** — drawn in muted ink so
+  it does not compete with the ramp for meaning, and suppressed entirely when
+  there are not more buckets than the window (a 3-month average over 3 months
+  is just the data again).
+- **Every period gets an axis floor** (`minAxisTop`). Without one, a week you
+  have not started yet draws a 0-1 axis ticked in quarter miles, which reads as
+  broken rather than empty.
 - **One y-axis, ever.** No dual-scale charts.
 - **Status colors are reserved** for load and readiness state, never for a data
   series, and always ship with a glyph and a written label so color never
@@ -66,6 +75,19 @@ Built as inline SVG, no charting library. The rules they follow:
   band rather than the mark.
 - Direct labels are selective — the endpoint of a trend, never a number on
   every point.
+
+## Form errors
+
+`session` has `UNIQUE (date, slot)`, which is what makes doubles work — but it
+also means re-logging a day you already have is a constraint violation, and an
+athlete will do that. `saveSessionAction` catches it and returns a readable
+message naming the free slot, rather than throwing.
+
+React 19 resets an uncontrolled form once its action resolves, so a rejected
+save has to hand back what was typed or the athlete loses the whole entry. The
+action echoes the scalar fields in its returned state and bumps an `attempt`
+counter that re-keys the form; reps and lifts are React state and survive on
+their own.
 
 ## Theming
 

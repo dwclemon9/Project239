@@ -289,6 +289,21 @@ textarea { resize: vertical; min-height: 72px; }
   white-space: nowrap;
 }
 
+.banner-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--status-critical);
+  background: var(--surface-1);
+  color: var(--status-critical);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+button[disabled] { opacity: 0.6; cursor: progress; }
+
 .empty {
   padding: 28px 20px;
   text-align: center;

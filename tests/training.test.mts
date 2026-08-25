@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  addDays, daysBetween, easyShare, loadStatus, readinessScore, resolveZones,
-  sessionLoad, weeklySummaries, weekStart,
+  addDays, addMonths, dailySummaries, daysBetween, easyShare, loadStatus,
+  monthlySummaries, monthStart, readinessScore, resolveZones, sessionLoad,
+  weeklySummaries, weekStart,
 } from '../src/lib/training.ts';
 import { formatPace, formatRepTime, parseTimeToSeconds, paceSecPerUnit } from '../src/lib/format.ts';
 import type { Session } from '../src/lib/types.ts';
@@ -68,7 +69,8 @@ test('weekly summaries keep empty weeks and split by intensity', () => {
   assert.equal(weeks.length, 4);
   assert.equal(weeks[0].distance_m, 0, 'weeks with nothing logged still appear');
   const current = weeks[3];
-  assert.equal(current.weekStart, '2026-08-17');
+  assert.equal(current.start, '2026-08-17');
+  assert.equal(current.title, 'Week of Aug 17');
   assert.equal(current.distance_m, 19000);
   assert.equal(current.easy_m, 10000);
   assert.equal(current.moderate_m, 4000);
@@ -77,6 +79,56 @@ test('weekly summaries keep empty weeks and split by intensity', () => {
 
   assert.equal(easyShare(weeks), 10000 / 19000);
   assert.equal(easyShare([]), null, 'no volume means no share to report');
+});
+
+test('month arithmetic wraps the year correctly', () => {
+  assert.equal(monthStart('2026-08-18'), '2026-08-01');
+  assert.equal(addMonths('2026-01-01', -1), '2025-12-01');
+  assert.equal(addMonths('2026-12-01', 1), '2027-01-01');
+  assert.equal(addMonths('2026-08-01', -12), '2025-08-01');
+});
+
+test('daily summaries cover Monday through Sunday, empty days included', () => {
+  const sessions = [
+    session({ date: '2026-08-17', distance_m: 10000, intensity: 'easy' }),
+    session({ date: '2026-08-19', distance_m: 8000, intensity: 'hard', type: 'workout' }),
+    session({ date: '2026-08-19', slot: 'pm', distance_m: 5000, intensity: 'easy' }),
+    // Belongs to the following week and must not leak into this one.
+    session({ date: '2026-08-24', distance_m: 9999, intensity: 'easy' }),
+  ];
+  const days = dailySummaries(sessions, '2026-08-19');
+
+  assert.equal(days.length, 7);
+  assert.deepEqual(days.map((d) => d.label), ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
+  assert.equal(days[0].start, '2026-08-17');
+  assert.equal(days[6].start, '2026-08-23');
+
+  assert.equal(days[0].distance_m, 10000);
+  assert.equal(days[1].distance_m, 0, 'a day off still gets a bucket');
+  assert.equal(days[2].distance_m, 13000, 'both halves of a double land on the same day');
+  assert.equal(days[2].hard_m, 8000);
+  assert.equal(days[2].easy_m, 5000);
+  assert.equal(days[2].sessions, 2);
+  assert.equal(days.reduce((sum, d) => sum + d.distance_m, 0), 23000, 'next week stays out');
+  assert.equal(days[2].title, 'Wed, Aug 19');
+});
+
+test('monthly summaries bucket by calendar month and label the year turn', () => {
+  const sessions = [
+    session({ date: '2025-12-31', distance_m: 6000, intensity: 'easy' }),
+    session({ date: '2026-01-01', distance_m: 7000, intensity: 'easy' }),
+    session({ date: '2026-01-15', distance_m: 3000, intensity: 'hard', type: 'workout' }),
+  ];
+  const months = monthlySummaries(sessions, 3, '2026-02-10');
+
+  assert.deepEqual(months.map((m) => m.start), ['2025-12-01', '2026-01-01', '2026-02-01']);
+  assert.equal(months[0].distance_m, 6000, 'Dec 31 belongs to December, not January');
+  assert.equal(months[1].distance_m, 10000);
+  assert.equal(months[1].hard_m, 3000);
+  assert.equal(months[2].distance_m, 0);
+  assert.equal(months[1].label, "Jan '26", 'January carries the year on the axis');
+  assert.equal(months[0].label, 'Dec');
+  assert.equal(months[1].title, 'Jan 2026');
 });
 
 test('readiness needs enough inputs before it reports a number', () => {

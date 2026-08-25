@@ -39,6 +39,12 @@ export function sessionsSince(days: number, asOf: string): Session[] {
     .all(addDays(asOf, -(days - 1)), asOf) as Session[];
 }
 
+/** Date of the first session ever logged, or null on an empty log. */
+export function earliestSessionDate(): string | null {
+  const row = db.prepare('SELECT MIN(date) AS date FROM session').get() as { date: string | null };
+  return row?.date ?? null;
+}
+
 export function getSession(id: number): SessionWithDetail | null {
   const session = db.prepare('SELECT * FROM session WHERE id = ?').get(id) as Session | undefined;
   if (!session) return null;

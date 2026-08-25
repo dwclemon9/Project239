@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useActionState, useState } from 'react';
 import Link from 'next/link';
-import { saveSessionAction, deleteSessionAction } from '@/app/actions';
+import { saveSessionAction, deleteSessionAction, type SessionFormState } from '@/app/actions';
 import { formatRepTime, toUnit } from '@/lib/format';
 import type { DistanceUnit, SessionWithDetail } from '@/lib/types';
 
@@ -37,7 +37,16 @@ interface Props {
   defaultDate: string;
 }
 
+const NO_ERROR: SessionFormState = { error: null };
+
 export default function SessionForm({ session, unit, defaultDate }: Props) {
+  const [state, formAction, pending] = useActionState(saveSessionAction, NO_ERROR);
+  // A rejected save hands back what was typed; fall back to the saved session,
+  // then to a blank form.
+  const echoed = state.values;
+  const initial = (field: string, saved: string | number | null | undefined) =>
+    echoed?.[field] ?? (saved == null ? '' : String(saved));
+
   const [type, setType] = useState<string>(session?.type ?? 'easy');
   const [intensity, setIntensity] = useState(session?.intensity ?? 'easy');
   const [reps, setReps] = useState<RepRow[]>(
@@ -83,19 +92,26 @@ export default function SessionForm({ session, unit, defaultDate }: Props) {
   }
 
   return (
-    <form action={saveSessionAction} className="stack">
+    <form key={state.attempt ?? 0} action={formAction} className="stack">
       {session && <input type="hidden" name="id" value={session.id} />}
+
+      {state.error && (
+        <div className="banner-error" role="alert">
+          <span aria-hidden="true">▲</span>
+          <span>{state.error}</span>
+        </div>
+      )}
 
       <div className="card">
         <div className="card-head"><h2>Session</h2></div>
         <div className="form-grid">
           <div className="field">
             <label htmlFor="date">Date</label>
-            <input id="date" name="date" type="date" required defaultValue={session?.date ?? defaultDate} />
+            <input id="date" name="date" type="date" required defaultValue={echoed?.date ?? session?.date ?? defaultDate} />
           </div>
           <div className="field">
             <label htmlFor="slot">Slot</label>
-            <select id="slot" name="slot" defaultValue={session?.slot ?? 'am'}>
+            <select id="slot" name="slot" defaultValue={echoed?.slot ?? session?.slot ?? 'am'}>
               <option value="am">AM</option>
               <option value="pm">PM (double)</option>
             </select>
@@ -123,7 +139,7 @@ export default function SessionForm({ session, unit, defaultDate }: Props) {
           <div className="field" style={{ gridColumn: '1 / -1' }}>
             <label htmlFor="title">Title</label>
             <input
-              id="title" name="title" type="text" defaultValue={session?.title ?? ''}
+              id="title" name="title" type="text" defaultValue={initial('title', session?.title)}
               placeholder="6 x 800m @ 5k pace, 2:00 jog"
             />
           </div>
@@ -137,7 +153,10 @@ export default function SessionForm({ session, unit, defaultDate }: Props) {
             <label htmlFor="distance">Distance ({unit})</label>
             <input
               id="distance" name="distance" type="number" step="0.01" min="0"
-              defaultValue={session?.distance_m ? toUnit(session.distance_m, unit).toFixed(2) : ''}
+              defaultValue={
+                echoed?.distance ??
+                (session?.distance_m ? toUnit(session.distance_m, unit).toFixed(2) : '')
+              }
             />
           </div>
           <div className="field">
@@ -145,22 +164,26 @@ export default function SessionForm({ session, unit, defaultDate }: Props) {
             <input
               id="duration" name="duration" type="text" inputMode="numeric"
               placeholder="52:30"
-              defaultValue={session?.duration_sec ? formatHMS(session.duration_sec) : ''}
+              defaultValue={
+                echoed?.duration ?? (session?.duration_sec ? formatHMS(session.duration_sec) : '')
+              }
             />
             <span className="hint">mm:ss or h:mm:ss</span>
           </div>
           <div className="field">
             <label htmlFor="rpe">RPE (1–10)</label>
-            <input id="rpe" name="rpe" type="number" min="1" max="10" defaultValue={session?.rpe ?? ''} />
+            <input id="rpe" name="rpe" type="number" min="1" max="10"
+                   defaultValue={initial('rpe', session?.rpe)} />
             <span className="hint">Feeds the training-load ratio.</span>
           </div>
           <div className="field">
             <label htmlFor="feel">Feel (1–5)</label>
-            <input id="feel" name="feel" type="number" min="1" max="5" defaultValue={session?.feel ?? ''} />
+            <input id="feel" name="feel" type="number" min="1" max="5"
+                   defaultValue={initial('feel', session?.feel)} />
           </div>
           <div className="field">
             <label htmlFor="surface">Surface</label>
-            <select id="surface" name="surface" defaultValue={session?.surface ?? ''}>
+            <select id="surface" name="surface" defaultValue={initial('surface', session?.surface)}>
               <option value="">—</option>
               {['track', 'road', 'trail', 'grass', 'treadmill', 'indoor'].map((s) => (
                 <option key={s} value={s}>{s[0].toUpperCase() + s.slice(1)}</option>
@@ -169,15 +192,17 @@ export default function SessionForm({ session, unit, defaultDate }: Props) {
           </div>
           <div className="field">
             <label htmlFor="shoes">Shoes</label>
-            <input id="shoes" name="shoes" type="text" defaultValue={session?.shoes ?? ''} />
+            <input id="shoes" name="shoes" type="text" defaultValue={initial('shoes', session?.shoes)} />
           </div>
           <div className="field">
             <label htmlFor="avg_hr">Avg HR</label>
-            <input id="avg_hr" name="avg_hr" type="number" min="0" defaultValue={session?.avg_hr ?? ''} />
+            <input id="avg_hr" name="avg_hr" type="number" min="0"
+                   defaultValue={initial('avg_hr', session?.avg_hr)} />
           </div>
           <div className="field">
             <label htmlFor="max_hr">Max HR</label>
-            <input id="max_hr" name="max_hr" type="number" min="0" defaultValue={session?.max_hr ?? ''} />
+            <input id="max_hr" name="max_hr" type="number" min="0"
+                   defaultValue={initial('max_hr', session?.max_hr)} />
           </div>
         </div>
       </div>
@@ -330,15 +355,15 @@ export default function SessionForm({ session, unit, defaultDate }: Props) {
         <div className="field">
           <label htmlFor="notes">Notes</label>
           <textarea
-            id="notes" name="notes" defaultValue={session?.notes ?? ''}
+            id="notes" name="notes" defaultValue={initial('notes', session?.notes)}
             placeholder="How it felt, conditions, what the coach said, anything nagging."
           />
         </div>
       </div>
 
       <div className="form-actions">
-        <button type="submit" className="btn btn-primary">
-          {session ? 'Save changes' : 'Save session'}
+        <button type="submit" className="btn btn-primary" disabled={pending}>
+          {pending ? 'Saving…' : session ? 'Save changes' : 'Save session'}
         </button>
         <Link href={session ? `/log/${session.id}` : '/log'} className="btn">Cancel</Link>
         <span className="spacer" />

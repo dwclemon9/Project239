@@ -1,11 +1,13 @@
 import Link from 'next/link';
 import StatTile, { type StatStatus } from '@/components/StatTile';
-import WeeklyVolumeChart from '@/components/charts/WeeklyVolumeChart';
+import VolumeChart from '@/components/charts/VolumeChart';
 import TrendChart, { type TrendPoint } from '@/components/charts/TrendChart';
-import { getAthlete, listNiggles, listWellness, personalBests, sessionsSince } from '@/lib/queries';
 import {
-  addDays, dateRange, distanceInWindow, easyShare, loadStatus, readinessScore,
-  todayISO, weeklySummaries, weekStart,
+  earliestSessionDate, getAthlete, listNiggles, listWellness, personalBests, sessionsSince,
+} from '@/lib/queries';
+import {
+  addDays, dailySummaries, dateRange, distanceInWindow, easyShare, loadStatus,
+  monthlySummaries, monthStart, readinessScore, todayISO, weeklySummaries, weekStart,
 } from '@/lib/training';
 import {
   formatDayLabel, formatDuration, formatPace, formatRepTime, sessionTypeLabel, toUnit,
@@ -25,9 +27,22 @@ export default function Dashboard() {
   const athlete = getAthlete();
   const unit = athlete.distance_unit;
 
-  // 12 weeks of history covers the chart, the 28-day load window, and trends.
-  const sessions = sessionsSince(7 * 12, today);
+  // A full year in one read: every rollup below filters by date, so the daily,
+  // weekly and monthly charts all come off this single query.
+  const sessions = sessionsSince(366, today);
+  const days = dailySummaries(sessions, today);
   const weeks = weeklySummaries(sessions, 12, today);
+
+  // Show only months you have actually trained through, so a new log does not
+  // open on a chart that is nine-twelfths empty.
+  const earliest = earliestSessionDate();
+  const monthsLogged = earliest
+    ? Math.round(
+        (Number(monthStart(today).slice(0, 4)) * 12 + Number(monthStart(today).slice(5, 7))) -
+        (Number(monthStart(earliest).slice(0, 4)) * 12 + Number(monthStart(earliest).slice(5, 7))),
+      ) + 1
+    : 3;
+  const months = monthlySummaries(sessions, Math.max(3, Math.min(monthsLogged, 12)), today);
   const thisWeek = weeks[weeks.length - 1];
   const lastWeek = weeks[weeks.length - 2];
   const load = loadStatus(sessions, today);
@@ -129,10 +144,51 @@ export default function Dashboard() {
 
       <div className="card">
         <div className="card-head">
-          <h2>Weekly volume by intensity</h2>
+          <h2>This week, day by day</h2>
+          <span className="sub">
+            {toUnit(thisWeek.distance_m, unit).toFixed(1)} {unit} · week of{' '}
+            {formatDayLabel(weekStart(today))}
+          </span>
+        </div>
+        <VolumeChart
+          buckets={days}
+          unit={unit}
+          periodHeader="Day"
+          minAxisTop={8}
+          description={`Running volume for each day of the week of ${weekStart(today)}, split by intensity`}
+        />
+      </div>
+
+      <div className="card">
+        <div className="card-head">
+          <h2>Weekly volume</h2>
           <span className="sub">Last 12 weeks · {unit}</span>
         </div>
-        <WeeklyVolumeChart weeks={weeks} unit={unit} />
+        <VolumeChart
+          buckets={weeks}
+          unit={unit}
+          periodHeader="Week of"
+          minAxisTop={20}
+          averageWindow={4}
+          description="Weekly running volume over the last 12 weeks, split by intensity"
+        />
+      </div>
+
+      <div className="card">
+        <div className="card-head">
+          <h2>Monthly volume</h2>
+          <span className="sub">
+            {months.length} month{months.length === 1 ? '' : 's'} · {unit}
+          </span>
+        </div>
+        <VolumeChart
+          buckets={months}
+          unit={unit}
+          periodHeader="Month"
+          minAxisTop={80}
+          averageWindow={3}
+          description={`Monthly running volume over the last ${months.length} months, split by intensity`}
+        />
       </div>
 
       <div className="grid grid-2">

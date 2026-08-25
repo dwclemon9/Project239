@@ -15,11 +15,43 @@ function revalidateAll() {
 
 // --- sessions --------------------------------------------------------------
 
+/** What the session form renders back to the athlete when a save is rejected. */
+export interface SessionFormState {
+  error: string | null;
+  /**
+   * Echo of what was typed. React resets an uncontrolled form once its action
+   * resolves, so a rejected save has to hand the values back or the athlete
+   * loses everything they just entered.
+   */
+  values?: Record<string, string>;
+  /** Bumps on each rejection so the form remounts against the echoed values. */
+  attempt?: number;
+}
+
+// The uncontrolled fields on the session form; the rest are React state and
+// survive the reset on their own.
+const ECHOED_FIELDS = [
+  'date', 'slot', 'title', 'distance', 'duration', 'rpe', 'feel',
+  'surface', 'shoes', 'avg_hr', 'max_hr', 'notes',
+] as const;
+
+function reject(prev: SessionFormState, formData: FormData, error: string): SessionFormState {
+  const values: Record<string, string> = {};
+  for (const field of ECHOED_FIELDS) {
+    const value = formData.get(field);
+    if (value != null) values[field] = String(value);
+  }
+  return { error, values, attempt: (prev.attempt ?? 0) + 1 };
+}
+
 /**
  * Distance is typed in the athlete's display unit and stored in meters; rep
  * distances are typed in meters, the way track reps are actually named.
  */
-export async function saveSessionAction(formData: FormData): Promise<void> {
+export async function saveSessionAction(
+  _prev: SessionFormState,
+  formData: FormData,
+): Promise<SessionFormState> {
   const unit = getAthlete().distance_unit;
   const idRaw = parseNumber(formData.get('id'));
   const distance = parseNumber(formData.get('distance'));
@@ -41,7 +73,9 @@ export async function saveSessionAction(formData: FormData): Promise<void> {
     notes: parseText(formData.get('notes')),
   };
 
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date)) throw new Error('A session needs a valid date.');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date)) {
+    return reject(_prev, formData, 'A session needs a valid date.');
+  }
 
   const repDistances = formData.getAll('rep_distance');
   const repTimes = formData.getAll('rep_time');
@@ -70,9 +104,27 @@ export async function saveSessionAction(formData: FormData): Promise<void> {
     }))
     .filter((l) => l.exercise !== '');
 
-  const id = saveSession(input, reps, lifts, idRaw ?? undefined);
+  let id: number;
+  try {
+    id = saveSession(input, reps, lifts, idRaw ?? undefined);
+  } catch (err) {
+    // One session per date per slot — the athlete is re-logging a day they
+    // already have, so point them at it instead of failing with a stack trace.
+    if (err instanceof Error && /UNIQUE constraint failed: session\.date/.test(err.message)) {
+      const slot = input.slot.toUpperCase();
+      const other = input.slot === 'am' ? 'PM' : 'AM';
+      return reject(
+        _prev,
+        formData,
+        `An ${slot} session is already logged on ${input.date}. ` +
+          `Edit that one from the log, or set this to ${other} if it was a double.`,
+      );
+    }
+    throw err;
+  }
+
   revalidateAll();
-  redirect(`/log/${id}`);
+  redirect(`/log/${id}`);   // throws NEXT_REDIRECT, so it must stay out of the try
 }
 
 export async function deleteSessionAction(formData: FormData): Promise<void> {

@@ -102,9 +102,17 @@ export interface SessionWithDetail extends Session {
   lifts: Lift[];
 }
 
-/** A Monday-anchored training week. */
-export interface WeekSummary {
-  weekStart: string;
+/**
+ * One bar's worth of volume — a day, a training week, or a month. The chart
+ * only ever sees this shape, so the period it covers is the caller's choice.
+ */
+export interface VolumeBucket {
+  /** Start date of the period, YYYY-MM-DD. Doubles as the React key. */
+  start: string;
+  /** Short x-axis label, e.g. "Mon", "Jun 1", "Aug". */
+  label: string;
+  /** Full label for tooltips and the table view, e.g. "Week of Jun 1". */
+  title: string;
   distance_m: number;
   easy_m: number;
   moderate_m: number;
@@ -113,3 +121,6 @@ export interface WeekSummary {
   sessions: number;
   load: number;
 }
+
+/** A Monday-anchored training week. */
+export type WeekSummary = VolumeBucket;

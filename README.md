@@ -25,8 +25,10 @@ npm run build     # production build
 **Dashboard** — the numbers that actually change training decisions:
 
 - Last 7 days and current-week volume, with the change against the prior week.
-- **Weekly volume by intensity** over 12 weeks, stacked easy / moderate / hard,
-  with a 4-week rolling average line.
+- **Volume at three zoom levels**, each stacked easy / moderate / hard: this
+  week day by day, the last 12 weeks, and the last 12 months. The weekly and
+  monthly charts carry a rolling-average line; the daily one doesn't, because a
+  rolling mean over seven days says nothing.
 - **Acute:chronic workload ratio** — 7-day training load against your 28-day
   norm. Roughly 0.8–1.3 is the productive range; past ~1.5 you have spiked your
   load. It needs about four weeks of history before it means anything.

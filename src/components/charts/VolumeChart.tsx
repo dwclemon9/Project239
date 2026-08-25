@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import { niceTicks, roundedTopBar } from '@/lib/scale';
-import { formatShortDate, toUnit } from '@/lib/format';
-import type { DistanceUnit, WeekSummary } from '@/lib/types';
+import { formatDuration, toUnit } from '@/lib/format';
+import type { DistanceUnit, VolumeBucket } from '@/lib/types';
 
 const W = 760;
 const H = 250;
@@ -20,32 +20,51 @@ const BANDS = [
 ] as const;
 
 interface Props {
-  weeks: WeekSummary[];
+  buckets: VolumeBucket[];
   unit: DistanceUnit;
+  /** Column header for the table view, e.g. "Week of", "Day", "Month". */
+  periodHeader: string;
+  /** Accessible summary of what the bars cover. */
+  description: string;
+  /**
+   * Trailing average drawn as a neutral annotation. Omit it on short spans
+   * (a single week of days) where a rolling mean says nothing.
+   */
+  averageWindow?: number;
+  /**
+   * Floor for the axis top. Without it, a week you have not started yet draws a
+   * 0-1 axis ticked in quarter miles, which reads as broken rather than empty.
+   */
+  minAxisTop?: number;
 }
 
-export default function WeeklyVolumeChart({ weeks, unit }: Props) {
+export default function VolumeChart({
+  buckets, unit, periodHeader, description, averageWindow, minAxisTop = 1,
+}: Props) {
   const [hover, setHover] = useState<number | null>(null);
 
-  const totals = weeks.map((w) => toUnit(w.distance_m, unit));
-  const ticks = niceTicks(Math.max(...totals, 1));
+  const totals = buckets.map((b) => toUnit(b.distance_m, unit));
+  const ticks = niceTicks(Math.max(...totals, minAxisTop));
   const top = ticks[ticks.length - 1];
   const y = (value: number) => PAD.top + PLOT_H - (value / top) * PLOT_H;
 
-  const band = PLOT_W / Math.max(weeks.length, 1);
+  const band = PLOT_W / Math.max(buckets.length, 1);
   const barW = Math.min(band * 0.62, 46);
 
-  // Four-week rolling average, drawn as a neutral annotation rather than a
-  // second series — the stack already owns the blue ramp.
-  const rolling = totals.map((_, i) => {
-    const slice = totals.slice(Math.max(0, i - 3), i + 1);
-    return slice.reduce((a, b) => a + b, 0) / slice.length;
-  });
-  const rollingPath = rolling
-    .map((v, i) => `${i === 0 ? 'M' : 'L'}${PAD.left + band * (i + 0.5)},${y(v)}`)
-    .join(' ');
+  // Rolling average, drawn as a neutral annotation rather than a second series
+  // — the stack already owns the blue ramp.
+  const showAverage = averageWindow != null && buckets.length > averageWindow;
+  const rollingPath = !showAverage
+    ? null
+    : totals
+        .map((_, i) => {
+          const slice = totals.slice(Math.max(0, i - (averageWindow - 1)), i + 1);
+          const mean = slice.reduce((a, b) => a + b, 0) / slice.length;
+          return `${i === 0 ? 'M' : 'L'}${PAD.left + band * (i + 0.5)},${y(mean)}`;
+        })
+        .join(' ');
 
-  const active = hover == null ? null : weeks[hover];
+  const active = hover == null ? null : buckets[hover];
 
   return (
     <div>
@@ -56,10 +75,12 @@ export default function WeeklyVolumeChart({ weeks, unit }: Props) {
             {b.label}
           </span>
         ))}
-        <span className="legend-item">
-          <span className="legend-rule" style={{ background: 'var(--text-muted)' }} />
-          4-week average
-        </span>
+        {showAverage && (
+          <span className="legend-item">
+            <span className="legend-rule" style={{ background: 'var(--text-muted)' }} />
+            {averageWindow}-period average
+          </span>
+        )}
       </div>
 
       <div className="chart-wrap">
@@ -67,7 +88,7 @@ export default function WeeklyVolumeChart({ weeks, unit }: Props) {
           className="chart-svg"
           viewBox={`0 0 ${W} ${H}`}
           role="img"
-          aria-label={`Weekly running volume over the last ${weeks.length} weeks, split by intensity`}
+          aria-label={description}
         >
           {ticks.map((t) => (
             <g key={t}>
@@ -84,18 +105,18 @@ export default function WeeklyVolumeChart({ weeks, unit }: Props) {
             </g>
           ))}
 
-          {weeks.map((week, i) => {
+          {buckets.map((bucket, i) => {
             const x = PAD.left + band * (i + 0.5) - barW / 2;
             let cursor = 0;
             const segments = BANDS.map((b) => {
-              const value = toUnit(week[b.key], unit);
+              const value = toUnit(bucket[b.key], unit);
               const from = cursor;
               cursor += value;
               return { ...b, from, to: cursor, value };
             }).filter((s) => s.value > 0);
 
             return (
-              <g key={week.weekStart} opacity={hover == null || hover === i ? 1 : 0.55}>
+              <g key={bucket.start} opacity={hover == null || hover === i ? 1 : 0.55}>
                 {segments.map((s, idx) => {
                   const yTop = y(s.to);
                   const isTop = idx === segments.length - 1;
@@ -111,28 +132,30 @@ export default function WeeklyVolumeChart({ weeks, unit }: Props) {
             );
           })}
 
-          <path d={rollingPath} fill="none" stroke="var(--text-muted)" strokeWidth="2"
-                strokeLinecap="round" strokeLinejoin="round" />
+          {rollingPath && (
+            <path d={rollingPath} fill="none" stroke="var(--text-muted)" strokeWidth="2"
+                  strokeLinecap="round" strokeLinejoin="round" />
+          )}
 
-          {weeks.map((week, i) => (
+          {buckets.map((bucket, i) => (
             <text
-              key={week.weekStart}
+              key={bucket.start}
               x={PAD.left + band * (i + 0.5)} y={H - 10}
               textAnchor="middle" fill="var(--text-muted)" fontSize="11"
             >
-              {formatShortDate(week.weekStart)}
+              {bucket.label}
             </text>
           ))}
 
           {/* Hit areas span the full band so the target is never the bar's width. */}
-          {weeks.map((week, i) => (
+          {buckets.map((bucket, i) => (
             <rect
-              key={`hit-${week.weekStart}`}
+              key={`hit-${bucket.start}`}
               x={PAD.left + band * i} y={PAD.top} width={band} height={PLOT_H}
               fill="transparent"
               tabIndex={0}
               role="button"
-              aria-label={`Week of ${formatShortDate(week.weekStart)}: ${toUnit(week.distance_m, unit).toFixed(1)} ${unit}`}
+              aria-label={`${bucket.title}: ${toUnit(bucket.distance_m, unit).toFixed(1)} ${unit}`}
               onMouseEnter={() => setHover(i)}
               onMouseLeave={() => setHover(null)}
               onFocus={() => setHover(i)}
@@ -147,10 +170,10 @@ export default function WeeklyVolumeChart({ weeks, unit }: Props) {
             style={{
               left: `${((PAD.left + band * (hover! + 0.5)) / W) * 100}%`,
               top: 0,
-              transform: hover! > weeks.length / 2 ? 'translate(-108%, 0)' : 'translate(8%, 0)',
+              transform: hover! > buckets.length / 2 ? 'translate(-108%, 0)' : 'translate(8%, 0)',
             }}
           >
-            <div className="tooltip-title">Week of {formatShortDate(active.weekStart)}</div>
+            <div className="tooltip-title">{active.title}</div>
             <div className="tooltip-row">
               <span>Total</span><b>{toUnit(active.distance_m, unit).toFixed(1)} {unit}</b>
             </div>
@@ -160,6 +183,9 @@ export default function WeeklyVolumeChart({ weeks, unit }: Props) {
               </div>
             ))}
             <div className="tooltip-row"><span>Sessions</span><b>{active.sessions}</b></div>
+            <div className="tooltip-row">
+              <span>Time</span><b>{formatDuration(active.duration_sec || null)}</b>
+            </div>
           </div>
         )}
       </div>
@@ -170,7 +196,7 @@ export default function WeeklyVolumeChart({ weeks, unit }: Props) {
           <table>
             <thead>
               <tr>
-                <th>Week of</th>
+                <th>{periodHeader}</th>
                 <th className="num">Easy</th>
                 <th className="num">Moderate</th>
                 <th className="num">Hard</th>
@@ -179,14 +205,14 @@ export default function WeeklyVolumeChart({ weeks, unit }: Props) {
               </tr>
             </thead>
             <tbody>
-              {[...weeks].reverse().map((w) => (
-                <tr key={w.weekStart}>
-                  <td>{formatShortDate(w.weekStart)}</td>
-                  <td className="num">{toUnit(w.easy_m, unit).toFixed(1)}</td>
-                  <td className="num">{toUnit(w.moderate_m, unit).toFixed(1)}</td>
-                  <td className="num">{toUnit(w.hard_m, unit).toFixed(1)}</td>
-                  <td className="num">{toUnit(w.distance_m, unit).toFixed(1)}</td>
-                  <td className="num">{w.sessions}</td>
+              {[...buckets].reverse().map((b) => (
+                <tr key={b.start}>
+                  <td>{b.title}</td>
+                  <td className="num">{toUnit(b.easy_m, unit).toFixed(1)}</td>
+                  <td className="num">{toUnit(b.moderate_m, unit).toFixed(1)}</td>
+                  <td className="num">{toUnit(b.hard_m, unit).toFixed(1)}</td>
+                  <td className="num">{toUnit(b.distance_m, unit).toFixed(1)}</td>
+                  <td className="num">{b.sessions}</td>
                 </tr>
               ))}
             </tbody>
