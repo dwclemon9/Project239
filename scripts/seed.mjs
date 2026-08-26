@@ -40,13 +40,13 @@ const mondayOffset = (today.getUTCDay() + 6) % 7;
 const thisMonday = addDays(today, -mondayOffset);
 const WEEKS = 12;
 
+// Demo training data only — the seed never overwrites who the log belongs to.
+// It fills in a threshold pace if none is set, since the paces depend on it.
 db.prepare(
-  `INSERT INTO athlete (id, name, school, class_year, primary_events, threshold_pace_sec, max_hr, resting_hr, distance_unit)
-   VALUES (1, 'Athlete', 'State University', 'Junior', '1500m / 5000m', 330, 192, 42, 'mi')
+  `INSERT INTO athlete (id, name, threshold_pace_sec, distance_unit)
+   VALUES (1, 'Athlete', 330, 'mi')
    ON CONFLICT (id) DO UPDATE SET
-     school = excluded.school, class_year = excluded.class_year,
-     primary_events = excluded.primary_events, threshold_pace_sec = excluded.threshold_pace_sec,
-     max_hr = excluded.max_hr, resting_hr = excluded.resting_hr`,
+     threshold_pace_sec = COALESCE(athlete.threshold_pace_sec, 330)`,
 ).run();
 
 const insertSession = db.prepare(

@@ -7,7 +7,7 @@ import {
   repsBySessionSince, sessionsSince,
 } from '@/lib/queries';
 import {
-  addDays, dailySummaries, dateRange, distanceInWindow, easyShare, loadStatus,
+  addDays, dailySummaries, dateRange, distanceInWindow, daysBetween, loadStatus,
   monthlySummaries, monthStart, readinessScore, todayISO, weeklySummaries,
   weekStart, withIntensity,
 } from '@/lib/training';
@@ -39,22 +39,20 @@ export default function Dashboard() {
     athlete.threshold_pace_sec,
   );
   const days = dailySummaries(volume, today);
-  const weeks = weeklySummaries(volume, 12, today);
 
-  // Show only months you have actually trained through, so a new log does not
-  // open on a chart that is nine-twelfths empty.
+  // Charts begin where training began. Padding the axis with periods from
+  // before the first logged session would draw empty bars for weeks that were
+  // never part of this log at all.
   const earliest = earliestSessionDate();
-  const monthsLogged = earliest
-    ? Math.round(
-        (Number(monthStart(today).slice(0, 4)) * 12 + Number(monthStart(today).slice(5, 7))) -
-        (Number(monthStart(earliest).slice(0, 4)) * 12 + Number(monthStart(earliest).slice(5, 7))),
-      ) + 1
-    : 3;
-  const months = monthlySummaries(volume, Math.max(3, Math.min(monthsLogged, 12)), today);
+  const weekCount = earliest
+    ? clamp(daysBetween(weekStart(earliest), weekStart(today)) / 7 + 1, 1, 12)
+    : 1;
+  const monthCount = earliest ? clamp(monthsBetween(earliest, today) + 1, 1, 12) : 1;
+
+  const weeks = weeklySummaries(volume, weekCount, today);
+  const months = monthlySummaries(volume, monthCount, today);
   const thisWeek = weeks[weeks.length - 1];
-  const lastWeek = weeks[weeks.length - 2];
   const load = loadStatus(sessions, today);
-  const share = easyShare(weeks.slice(-4));
   const openNiggles = listNiggles().filter((n) => n.date_end == null);
   const pbs = personalBests();
 
@@ -69,20 +67,23 @@ export default function Dashboard() {
   const recent = sessions.slice(0, 8);
   const last7 = distanceInWindow(sessions, today, 7);
   const prev7 = distanceInWindow(sessions, addDays(today, -7), 7);
-  const delta = prev7 > 0 ? ((last7 - prev7) / prev7) * 100 : null;
+  const last31 = distanceInWindow(sessions, today, 31);
+  const prev31 = distanceInWindow(sessions, addDays(today, -31), 31);
   const loadCopy = load.zone === 'unknown' ? null : LOAD_COPY[load.zone];
   const todayCheckin = wellnessByDate.get(today);
+
+  // Identity line: whatever of events / school is filled in, then the week.
+  const subtitle = [athlete.primary_events, athlete.school]
+    .filter((part): part is string => Boolean(part))
+    .concat(`week of ${formatDayLabel(weekStart(today))}`)
+    .join(' · ');
 
   return (
     <div className="stack">
       <div className="page-head">
         <div>
           <h1>{athlete.name}</h1>
-          <p>
-            {athlete.primary_events ?? 'Distance'}
-            {athlete.school ? ` · ${athlete.school}` : ''} · week of{' '}
-            {formatDayLabel(weekStart(today))}
-          </p>
+          <p>{subtitle}</p>
         </div>
         {!todayCheckin && (
           <Link href="/wellness" className="btn">
@@ -96,38 +97,24 @@ export default function Dashboard() {
           label="Last 7 days"
           value={toUnit(last7, unit).toFixed(1)}
           unit={unit}
-          meta={
-            delta == null
-              ? 'No prior week to compare'
-              : `${Math.round(delta) > 0 ? '+' : ''}${Math.round(delta)}% vs the week before`
-          }
+          meta={windowDelta(last7, prev7, 'the week before')}
         />
         <StatTile
-          label="This training week"
-          value={toUnit(thisWeek.distance_m, unit).toFixed(1)}
+          label="Last 31 days"
+          value={toUnit(last31, unit).toFixed(1)}
           unit={unit}
-          meta={`${thisWeek.sessions} session${thisWeek.sessions === 1 ? '' : 's'} · ${formatDuration(thisWeek.duration_sec || null)} on feet`}
+          meta={windowDelta(last31, prev31, 'the 31 days before')}
         />
         <StatTile
           label="Acute : chronic load"
           value={load.ratio == null ? '—' : load.ratio.toFixed(2)}
           meta={
             load.ratio == null
-              ? 'Needs ~4 weeks of logged sessions'
+              ? 'Needs 4 weeks of history before it means anything'
               : `7-day load ${Math.round(load.acute)} vs 28-day norm ${Math.round(load.chronic)}`
           }
           status={loadCopy?.status}
           statusLabel={loadCopy?.label}
-        />
-        <StatTile
-          label="Easy volume, last 4 weeks"
-          value={share == null ? '—' : `${Math.round(share * 100)}`}
-          unit={share == null ? undefined : '%'}
-          meta="Warmups, cooldowns and recovery jogs count as easy; only the reps themselves are quality"
-          status={share == null ? undefined : share >= 0.75 ? 'good' : 'warning'}
-          statusLabel={
-            share == null ? undefined : share >= 0.75 ? 'Aerobic base protected' : 'Quality creeping up'
-          }
         />
       </div>
 
@@ -170,7 +157,9 @@ export default function Dashboard() {
       <div className="card">
         <div className="card-head">
           <h2>Weekly volume</h2>
-          <span className="sub">Last 12 weeks · {unit}</span>
+          <span className="sub">
+            {weeks.length} week{weeks.length === 1 ? '' : 's'} · {unit}
+          </span>
         </div>
         <VolumeChart
           buckets={weeks}
@@ -178,7 +167,7 @@ export default function Dashboard() {
           periodHeader="Week of"
           minAxisTop={20}
           averageWindow={4}
-          description="Weekly running volume over the last 12 weeks, split by intensity"
+          description={`Weekly running volume over ${weeks.length} weeks, split by intensity`}
         />
       </div>
 
@@ -297,4 +286,21 @@ export default function Dashboard() {
       </div>
     </div>
   );
+}
+
+function clamp(value: number, low: number, high: number): number {
+  return Math.max(low, Math.min(Math.round(value), high));
+}
+
+/** Whole calendar months from one date to another. */
+function monthsBetween(from: string, to: string): number {
+  const key = (iso: string) => Number(iso.slice(0, 4)) * 12 + Number(iso.slice(5, 7));
+  return key(monthStart(to)) - key(monthStart(from));
+}
+
+/** "+12% vs the week before", or a note when there is nothing to compare to. */
+function windowDelta(current: number, previous: number, label: string): string {
+  if (previous <= 0) return `Nothing logged in ${label}`;
+  const pct = Math.round(((current - previous) / previous) * 100);
+  return `${pct > 0 ? '+' : ''}${pct}% vs ${label}`;
 }

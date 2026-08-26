@@ -70,6 +70,23 @@ test('acute:chronic ratio flags a spiked week', () => {
   assert.equal(loadStatus([], '2026-08-18').ratio, null);
 });
 
+test('a young log reports no load ratio rather than a false spike', () => {
+  // Nine days of perfectly ordinary training, the way a season opens.
+  const sessions = Array.from({ length: 9 }, (_, i) =>
+    session({ id: i + 1, date: addDays('2026-08-25', -(8 - i)), duration_sec: 3600, rpe: 5 }));
+
+  const young = loadStatus(sessions, '2026-08-25');
+  assert.equal(young.ratio, null, 'a 28-day norm cannot be built from nine days');
+  assert.equal(young.zone, 'unknown');
+
+  // Once the history is actually there, the ratio comes back.
+  const mature = Array.from({ length: 28 }, (_, i) =>
+    session({ id: i + 1, date: addDays('2026-08-25', -(27 - i)), duration_sec: 3600, rpe: 5 }));
+  const grown = loadStatus(mature, '2026-08-25');
+  assert.ok(grown.ratio != null, 'four weeks of history is enough');
+  assert.equal(grown.zone, 'optimal', 'steady training is not a spike');
+});
+
 test('weekly summaries keep empty weeks and split by intensity', () => {
   const sessions = [
     session({ date: '2026-08-17', distance_m: 10000, intensity: 'easy' }),

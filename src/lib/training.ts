@@ -85,21 +85,34 @@ export interface LoadStatus {
  * 0.8-1.3; above ~1.5 is the classic "spiked your mileage" signal. It is a
  * trend indicator, not a diagnosis — it needs ~4 weeks of history to mean much.
  */
+/** The ratio divides by four weeks, so it needs four weeks to mean anything. */
+export const CHRONIC_WINDOW_DAYS = 28;
+
 export function loadStatus(sessions: Session[], asOf: string): LoadStatus {
   const acuteStart = addDays(asOf, -6);
   const chronicStart = addDays(asOf, -27);
 
   let acute = 0;
   let chronic = 0;
+  let earliest: string | null = null;
   for (const s of sessions) {
-    if (s.date > asOf || s.date < chronicStart) continue;
+    if (s.date > asOf) continue;
+    if (earliest == null || s.date < earliest) earliest = s.date;
+    if (s.date < chronicStart) continue;
     const load = sessionLoad(s);
     chronic += load;
     if (s.date >= acuteStart) acute += load;
   }
 
   const chronicWeekly = chronic / 4;
-  if (chronicWeekly <= 0) return { acute, chronic: chronicWeekly, ratio: null, zone: 'unknown' };
+
+  // A log that is two weeks old has no 28-day norm — averaging its load over
+  // four weeks invents a baseline far below reality and cries "spike" at
+  // perfectly ordinary training. Report nothing until the history is there.
+  const span = earliest == null ? 0 : daysBetween(earliest, asOf) + 1;
+  if (span < CHRONIC_WINDOW_DAYS || chronicWeekly <= 0) {
+    return { acute, chronic: chronicWeekly, ratio: null, zone: 'unknown' };
+  }
 
   const ratio = acute / chronicWeekly;
   const zone =

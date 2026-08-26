@@ -23,8 +23,14 @@ platforms, so this is normally just a download; if your platform has no prebuild
 it falls back to compiling, which needs Xcode command line tools on macOS or
 `build-essential` on Linux.
 
-`npm run seed -- --reset` wipes the log first. To start genuinely clean, delete
-`data/training.db` — it is gitignored, so your log never lands in a commit.
+`npm run seed -- --reset` wipes the log first. To start genuinely clean:
+
+```bash
+npm run reset     # clears the log and restores the profile defaults
+```
+
+It asks for confirmation before deleting anything. The database is gitignored,
+so your log never lands in a commit — back it up by copying `data/training.db`.
 
 ```bash
 npm test          # unit tests for the training math
@@ -35,16 +41,19 @@ npm run build     # production build
 
 **Dashboard** — the numbers that actually change training decisions:
 
-- Last 7 days and current-week volume, with the change against the prior week.
+- Last 7 days and last 31 days, each against the equivalent window before it.
 - **Volume at three zoom levels**, each stacked easy / moderate / hard: this
-  week day by day, the last 12 weeks, and the last 12 months. The weekly and
-  monthly charts carry a rolling-average line; the daily one doesn't, because a
-  rolling mean over seven days says nothing.
+  week day by day, then by week and by month. The charts begin at your first
+  logged session and grow from there, capped at 12 periods — no empty bars for
+  weeks that were never part of the log. The weekly and monthly charts carry a
+  rolling-average line; the daily one doesn't, because a rolling mean over seven
+  days says nothing.
 - **Acute:chronic workload ratio** — 7-day training load against your 28-day
   norm. Roughly 0.8–1.3 is the productive range; past ~1.5 you have spiked your
   load. It needs about four weeks of history before it means anything.
-- **Easy volume share** — the 80/20 check. If quality creeps past ~25% of your
-  weekly volume, the tile says so.
+- **Acute:chronic load**, which stays blank until there are four weeks of
+  history behind it — the ratio divides by a 28-day norm, so a younger log
+  would report a spike that isn't there.
 
 Volume is classified **per segment, not per session**. In a workout, the warmup,
 cooldown and recovery jog are easy running; only the reps themselves are

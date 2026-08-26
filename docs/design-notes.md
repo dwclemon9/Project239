@@ -71,6 +71,20 @@ The declared `intensity` field survives as the fallback, and the session page
 names which of the three rules produced its split — the classification should
 never look like magic.
 
+## Refusing to report numbers that aren't earned
+
+Two places deliberately show nothing rather than something plausible:
+
+- **Acute:chronic load** needs `CHRONIC_WINDOW_DAYS` (28) of history. The ratio
+  divides the 7-day load by a 28-day average; on a log that is nine days old
+  that average is spread over three weeks of nothing, so ordinary training
+  reads as a 2.5 spike. A young log gets `ratio: null` and says why.
+- **Readiness** needs at least three fields in the check-in.
+
+The charts follow the same principle from the other side: they start at the
+first logged session rather than padding the axis backwards, so a bar on screen
+always means a period the athlete actually trained through.
+
 ## Readiness
 
 A 0–100 weighted score from the morning check-in. Sleep and fatigue carry the
