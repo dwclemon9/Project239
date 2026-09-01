@@ -149,6 +149,26 @@ not guess an extension, while the bundler is happy either way. Writing the
 extension is what lets the same modules be imported by both without duplicating
 constants across files.
 
+## The macOS launcher
+
+`scripts/mac/install.sh` writes a LaunchAgent that runs `scripts/mac/serve.sh`
+at login. Two details are load-bearing:
+
+- **The node path is resolved at install time and written into the job.**
+  launchd starts with a bare PATH, so a node installed through nvm — which
+  lives only in a shell profile — would be invisible at login. The installer
+  detects nvm and warns that switching versions means re-running it.
+- **Builds are staged.** `next build` empties its output directory before it
+  starts, so building into `.next` destroys the running dashboard the moment a
+  build fails. `next.config.ts` reads `NEXT_DIST_DIR`, the launcher builds into
+  `.next-build`, and only a successful build gets moved into place. This was
+  found by deliberately breaking a source file and watching the first version
+  of the script report "serving the previous build" and then exit, because
+  there was no previous build left to serve.
+
+A stamp file holds the commit and lockfile hash the current build came from, so
+an unchanged checkout skips the build and starts in about two seconds.
+
 ## Local-first
 
 One SQLite file at `data/training.db`, gitignored. `better-sqlite3` is

@@ -37,6 +37,37 @@ npm test          # unit tests for the training math
 npm run build     # production build
 ```
 
+## Keeping it one click away (macOS)
+
+```bash
+npm run mac:install
+```
+
+That sets the dashboard to start automatically every time you log in, so
+**http://localhost:3000** is simply always there. Open it in Safari and use
+*File > Add to Dock* and you get a real app icon — no browser chrome, no
+Terminal window.
+
+`Dashboard.command` in the project folder is a double-clickable alternative:
+it opens the dashboard, starting it first if it isn't running. Drag it to your
+Dock if you'd rather launch it by hand.
+
+`npm run mac:uninstall` stops it and removes it from login. It never touches
+your training log.
+
+Two things the launcher is careful about:
+
+- It only rebuilds when the checkout has actually changed, so logging in puts
+  the dashboard up in a couple of seconds instead of waiting on a build. After
+  a `git pull` the next start rebuilds automatically.
+- It builds into a staging directory and swaps it in only once the build
+  succeeds. `next build` empties its output directory before it starts, so
+  building straight into `.next` would leave you with no dashboard at all any
+  time a build failed.
+
+The server logs to `~/Library/Logs/Project239.log` if anything needs chasing
+down.
+
 ## What it does
 
 **Dashboard** — the numbers that actually change training decisions:
